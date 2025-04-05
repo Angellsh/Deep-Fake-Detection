@@ -1,6 +1,6 @@
 import torch
 import os
-from torchvision.models import resnet18, resnet34  
+from torchvision.models import resnet18, ResNet18_Weights
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset, SubsetRandomSampler, Subset
@@ -29,7 +29,7 @@ if __name__=='__main__':
     real_index = ftraindataset.class_to_idx['Real']
     fake_indexes  = [ i for i, label in enumerate(ftraindataset.targets) if label==fake_index]
     real_indxes = [i for i, label in enumerate(ftraindataset.targets) if label==real_index]
-    train_indexes = random.sample(fake_indexes,400)+ random.sample(real_indxes, 400)
+    train_indexes = random.sample(fake_indexes, 1000)+ random.sample(real_indxes, 1000)
     traindataset = Subset(ftraindataset, train_indexes)
 
     #testing data
@@ -37,13 +37,13 @@ if __name__=='__main__':
     real_index_test = ftestdataset.class_to_idx['Real']
     fake_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label== fake_index_test]
     real_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label==real_index_test]
-    test_indexes = random.sample(fake_indexes_test, 100)+random.sample(real_indexes_test, 100)
+    test_indexes = random.sample(fake_indexes_test, 250)+random.sample(real_indexes_test, 250)
     testdataset = Subset(ftestdataset, test_indexes)
 
     trainloader = DataLoader(traindataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
     testloader = DataLoader(testdataset, batch_size =32, shuffle=False, num_workers=4, pin_memory=True)
     print(len(trainloader)*32)
-    model = resnet34(weights=ResNet34_Weights.IMAGENET1K_V1)  
+    model = resnet18(weights=ResNet18_Weights.DEFAULT)  
     model.fc = nn.Linear(model.fc.in_features, 1)
     model = model.to(device)
     criterion = nn.BCEWithLogitsLoss()
@@ -87,9 +87,13 @@ if __name__=='__main__':
 
         accuracy = (all_labels==all_predicted).sum().item()/ len(all_labels)*100
         fscore = metrics.f1_score(labels.cpu(), predicted.cpu(), average='weighted')
+        precision = metrics.precision_score(labels.cpu(), predicted.cpu(), average='weighted')
         print('accuracy', accuracy)
         print("fscore", fscore)
+        print("precision", precision)
 
+
+#evaluating on 100 real images
     model.eval()
     dir = os.path.join(path, 'Dataset', 'test', 'real')
     i = 0
