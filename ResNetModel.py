@@ -12,8 +12,11 @@ import warnings
 from PIL import Image
 from sklearn import metrics
 import random
-warnings.filterwarnings("ignore", category=UserWarning, module="urllib3")
+import matplotlib
+import matplotlib.pyplot as plt
+import time
 if __name__=='__main__':
+    starttime = time.time()
     path = kagglehub.dataset_download("manjilkarki/deepfake-and-real-images")
     print(path)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -29,7 +32,7 @@ if __name__=='__main__':
     real_index = ftraindataset.class_to_idx['Real']
     fake_indexes  = [ i for i, label in enumerate(ftraindataset.targets) if label==fake_index]
     real_indxes = [i for i, label in enumerate(ftraindataset.targets) if label==real_index]
-    train_indexes = random.sample(fake_indexes, 1000)+ random.sample(real_indxes, 1000)
+    train_indexes = random.sample(fake_indexes, 10000)+ random.sample(real_indxes, 10000)
     traindataset = Subset(ftraindataset, train_indexes)
 
     #testing data
@@ -37,7 +40,7 @@ if __name__=='__main__':
     real_index_test = ftestdataset.class_to_idx['Real']
     fake_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label== fake_index_test]
     real_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label==real_index_test]
-    test_indexes = random.sample(fake_indexes_test, 250)+random.sample(real_indexes_test, 250)
+    test_indexes = random.sample(fake_indexes_test, 2500)+random.sample(real_indexes_test, 2500)
     testdataset = Subset(ftestdataset, test_indexes)
 
     trainloader = DataLoader(traindataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
@@ -70,6 +73,8 @@ if __name__=='__main__':
     total=0
     all_labels=[]
     all_predicted=[]
+    end_time = time.time()
+
     print("Testing")
     with torch.no_grad(): 
         for images, labels in testloader:
@@ -86,16 +91,28 @@ if __name__=='__main__':
         all_predicted=torch.cat(all_predicted)
 
         accuracy = (all_labels==all_predicted).sum().item()/ len(all_labels)*100
-        fscore = metrics.f1_score(labels.cpu(), predicted.cpu(), average='weighted')
-        precision = metrics.precision_score(labels.cpu(), predicted.cpu(), average='weighted')
+        accuracy2 = metrics.accuracy_score(all_labels, all_predicted)
+        fscore = metrics.f1_score(all_labels, all_predicted, average='weighted')
+        precision = metrics.precision_score(all_labels, all_predicted, average='weighted')
+        try:
+
+            cm = metrics.confusion_matrix(all_labels, all_predicted)
+            disp = metrics.ConfusionMatrixDisplay(cm)
+        except Exception as e:
+            print(e)
+        print("Confusion Matrix")
+        disp.plot(cmap="Blues")
         print('accuracy', accuracy)
         print("fscore", fscore)
         print("precision", precision)
+        plt.show()
 
-
+    end_time2= time.time()
+    print(f"Training time {round((end_time-starttime)/60, 2)} minutes.")
+    print(f"Testing time {round((end_time2-end_time)/60,2)} minutes.")
 #evaluating on 100 real images
     model.eval()
-    dir = os.path.join(path, 'Dataset', 'test', 'real')
+    dir = os.path.join(path, 'Dataset', 'test', 'fake')
     i = 0
     with os.scandir(dir) as entries:
         for entry in entries:
