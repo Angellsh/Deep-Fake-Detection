@@ -1,9 +1,4 @@
 import os
-
-os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
-os.environ['DISABLE_XNNPACK'] = '1'
-os.environ['GLOG_minloglevel'] = '2'
-
 import torch
 from torchvision.models import resnet18, ResNet18_Weights
 import torch.nn as nn
@@ -26,34 +21,15 @@ import mediapipe
 import pandas as pd
 import numpy as np
 
-#Date Created 4/7/2025
-
-import cv2
-import matplotlib.pyplot as plt
-import mediapipe
-import pandas as pd
-import numpy as np
 
 
-
-
-def ExtractFromImage(filepath, outfolderpath):
-    print(filepath)
+def ExtractFromImage(filepath, outfolderpath, face_mesh):
 
     img = cv2.imread(filepath)
 
     if img is None:
         print("❌ Failed to load image at path =", path)
         return
-
-    mpFaceMesh = mediapipe.solutions.face_mesh
-    face_mesh = mpFaceMesh.FaceMesh(
-        static_image_mode=True,
-        max_num_faces=1,    
-        refine_landmarks=False,      
-        min_detection_confidence=0.5,  
-        min_tracking_confidence=0.5     
-        )
 
     results = face_mesh.process(img[:,:,::-1])
 
@@ -102,14 +78,11 @@ def ExtractFromImage(filepath, outfolderpath):
     out = np.zeros_like(img)
     out[mask] = img[mask]
 
-
-
-
     #Save Out Image
     cv2.imwrite(outfolderpath + os.path.basename(filepath), out)
 
-    #close meshes for memory
-    face_mesh.close()
+    #Cleanup
+    del img, mask, out, routes, landmarks, results
 
     return
 
@@ -130,7 +103,7 @@ if __name__=='__main__':
 
 
     #Prepare output folders
-    class_names = ftestdataset.classes
+    class_names = ftraindataset.classes
     for class_name in class_names:
         os.makedirs(os.path.join(path, 'ftraindata_extracted', class_name), exist_ok=True)  
 
@@ -139,17 +112,32 @@ if __name__=='__main__':
         os.makedirs(os.path.join(path, 'ftestdata_extracted', class_name), exist_ok=True)
 
     #Process images
+    mpFaceMesh = mediapipe.solutions.face_mesh
+    face_mesh = mpFaceMesh.FaceMesh(
+        static_image_mode=True,
+        max_num_faces=1,    
+        refine_landmarks=False,      
+        min_detection_confidence=0.5,  
+        min_tracking_confidence=0.5     
+        )
+
+    print("Processing training images")
+
     for path, label in ftraindataset.imgs:
         if label == 0:
-            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Fake'))
+            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Fake'), face_mesh)
         else:
-            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Real'))
+            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Real'), face_mesh)
+
+    print("Processing test images")
 
     for path, label in ftestdataset.imgs:
         if label == 0:
-            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Fake'))
+            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Fake'), face_mesh)
         else:
-            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Real'))
+            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Real'), face_mesh)
+
+    face_mesh.close()
 
     #Set new folders
     ftraindataset = ImageFolder(root =os.path.join(path, 'ftraindata_extracted'), transform=transform)
