@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch
 from torchvision.models import resnet18, ResNet18_Weights
 class ResNet18Wrapper:
-    def __init__(self, epochs=5, lr=0.0001, ):
+    def __init__(self, epochs=5, lr=0.001, ):
         self.epochs = epochs
         self.lr = lr
         self.model = resnet18(weights=ResNet18_Weights.DEFAULT)  
         self.criterion=nn.BCEWithLogitsLoss()
-        self.optimizer = torch.optim.SGD(self.model.fc.parameters(), lr, momentum=0.9)
+        self.optimizer = torch.optim.Adam()
         #self.optimizer = torch.optim.Adam(self.model.parameters(), lr)
         self.model.fc = nn.Linear(self.model.fc.in_features, 1)
 

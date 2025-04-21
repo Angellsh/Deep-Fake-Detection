@@ -30,6 +30,6 @@ if __name__=='__main__':
     end_time = time.time()
     print(f"Training time {round((end_time-starttime)/60, 2)} minutes.")
     trained_model = model.get_model()
-    test(trained_model, testloader, valdataset, device)
+    test(trained_model, testloader, device)
     end_time2= time.time()
     print(f"Testing time {round((end_time2-end_time)/60,2)} minutes.")
