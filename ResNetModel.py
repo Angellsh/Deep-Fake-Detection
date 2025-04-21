@@ -15,6 +15,85 @@ import random
 import matplotlib
 import matplotlib.pyplot as plt
 import time
+
+import cv2
+import mediapipe
+import pandas as pd
+import numpy as np
+
+#Date Created 4/7/2025
+
+import cv2
+import matplotlib.pyplot as plt
+import mediapipe
+import pandas as pd
+import numpy as np
+import os
+
+def ExtractFromImage(filepath, outfolderpath):
+    print(filepath)
+
+    img = cv2.imread(filepath)
+
+    if img is None:
+        print("❌ Failed to load image at path =", path)
+        return
+
+    mpFaceMesh = mediapipe.solutions.face_mesh
+    face_mesh = mpFaceMesh.FaceMesh(static_image_mode=True)
+
+    results = face_mesh.process(img[:,:,::-1])
+
+    if not results.multi_face_landmarks:
+        print("❌ No face landmarks detected in image at path =", filepath)
+        return
+
+    landmarks = results.multi_face_landmarks[0]
+
+    face_oval = mpFaceMesh.FACEMESH_FACE_OVAL
+
+    df = pd.DataFrame(list(face_oval), columns = ["p1", "p2"])
+
+    routeIndexes = []
+
+    p1 = df.iloc[0]["p1"]
+    p2 = df.iloc[0]["p2"]
+
+    for i in range(0, df.shape[0]):
+        
+        obj = df[df["p1"] == p2]
+        p1 = obj["p1"].values[0]
+        p2 = obj["p2"].values[0]
+
+        currentRoute = []
+        currentRoute.append(p1)
+        currentRoute.append(p2)
+        routeIndexes.append(currentRoute)
+
+
+    routes = []
+    for sourceID, targetID in routeIndexes:
+        source = landmarks.landmark[sourceID]
+        target = landmarks.landmark[targetID]
+
+        relativeSource = int(source.x * img.shape[1]), int(source.y * img.shape[0])
+        relativeTarget = int(target.x * img.shape[1]), int(target.y * img.shape[0])
+
+        routes.append(relativeSource)
+        routes.append(relativeTarget)
+
+    mask = np.zeros((img.shape[0], img.shape[1]))
+    mask = cv2.fillConvexPoly(mask, np.array(routes), 1)
+    mask = mask.astype(bool)
+
+    out = np.zeros_like(img)
+    out[mask] = img[mask]
+
+
+    #Save Out Image
+    cv2.imwrite(outfolderpath + os.path.basename(filepath), out)
+    return
+
 if __name__=='__main__':
     starttime = time.time()
     path = kagglehub.dataset_download("manjilkarki/deepfake-and-real-images")
@@ -27,6 +106,39 @@ if __name__=='__main__':
     ])
     ftraindataset = ImageFolder(root =os.path.join(path, 'Dataset', 'train'), transform=transform)
     ftestdataset = ImageFolder(root =os.path.join(path, 'Dataset','test'), transform=transform)
+
+
+
+
+    #Prepare output folders
+    class_names = ftestdataset.classes
+    for class_name in class_names:
+        os.makedirs(os.path.join(path, 'ftraindata_extracted', class_name), exist_ok=True)  
+
+    class_names = ftestdataset.classes
+    for class_name in class_names:
+        os.makedirs(os.path.join(path, 'ftestdata_extracted', class_name), exist_ok=True)
+
+    #Process images
+    for path, label in ftraindataset.imgs:
+        if label == 0:
+            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Fake'))
+        else:
+            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Real'))
+
+    for path, label in ftestdataset.imgs:
+        if label == 0:
+            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Fake'))
+        else:
+            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Real'))
+
+    #Set new folders
+    ftraindataset = ImageFolder(root =os.path.join(path, 'ftraindata_extracted'), transform=transform)
+    ftestdataset = ImageFolder(root =os.path.join(path, 'ftestdata_extracted'), transform=transform)
+
+
+
+
     print(ftraindataset.class_to_idx)
     fake_index= ftraindataset.class_to_idx['Fake']
     real_index = ftraindataset.class_to_idx['Real']
