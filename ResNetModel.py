@@ -1,5 +1,10 @@
-import torch
 import os
+
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+os.environ['DISABLE_XNNPACK'] = '1'
+os.environ['GLOG_minloglevel'] = '2'
+
+import torch
 from torchvision.models import resnet18, ResNet18_Weights
 import torch.nn as nn
 import torch.nn.functional as F
@@ -28,7 +33,9 @@ import matplotlib.pyplot as plt
 import mediapipe
 import pandas as pd
 import numpy as np
-import os
+
+
+
 
 def ExtractFromImage(filepath, outfolderpath):
     print(filepath)
@@ -40,7 +47,13 @@ def ExtractFromImage(filepath, outfolderpath):
         return
 
     mpFaceMesh = mediapipe.solutions.face_mesh
-    face_mesh = mpFaceMesh.FaceMesh(static_image_mode=True)
+    face_mesh = mpFaceMesh.FaceMesh(
+        static_image_mode=True,
+        max_num_faces=1,    
+        refine_landmarks=False,      
+        min_detection_confidence=0.5,  
+        min_tracking_confidence=0.5     
+        )
 
     results = face_mesh.process(img[:,:,::-1])
 
@@ -90,8 +103,14 @@ def ExtractFromImage(filepath, outfolderpath):
     out[mask] = img[mask]
 
 
+
+
     #Save Out Image
     cv2.imwrite(outfolderpath + os.path.basename(filepath), out)
+
+    #close meshes for memory
+    face_mesh.close()
+
     return
 
 if __name__=='__main__':
@@ -146,6 +165,8 @@ if __name__=='__main__':
     real_indxes = [i for i, label in enumerate(ftraindataset.targets) if label==real_index]
     train_indexes = random.sample(fake_indexes, 10000)+ random.sample(real_indxes, 10000)
     traindataset = Subset(ftraindataset, train_indexes)
+
+
 
     #testing data
     fake_index_test = ftestdataset.class_to_idx['Fake']
