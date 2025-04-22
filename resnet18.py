@@ -8,8 +8,7 @@ class ResNet18Wrapper:
         self.lr = lr
         self.model = resnet18(weights=ResNet18_Weights.DEFAULT)  
         self.criterion=nn.BCEWithLogitsLoss()
-        self.optimizer = torch.optim.Adam()
-        #self.optimizer = torch.optim.Adam(self.model.parameters(), lr)
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr)
         self.model.fc = nn.Linear(self.model.fc.in_features, 1)
 
     def train(self, trainloader, device):
