@@ -28,7 +28,7 @@ def ExtractFromImage(filepath, outfolderpath, face_mesh):
     img = cv2.imread(filepath)
 
     if img is None:
-        print("❌ Failed to load image at path =", path)
+        print("❌ Failed to load image at path =", filepath)
         return
 
     results = face_mesh.process(img[:,:,::-1])
@@ -79,7 +79,7 @@ def ExtractFromImage(filepath, outfolderpath, face_mesh):
     out[mask] = img[mask]
 
     #Save Out Image
-    cv2.imwrite(outfolderpath + os.path.basename(filepath), out)
+    cv2.imwrite(os.path.join(outfolderpath, os.path.basename(filepath)), out)
 
     #Cleanup
     del img, mask, out, routes, landmarks, results
@@ -114,28 +114,29 @@ if __name__=='__main__':
     #Process images
     mpFaceMesh = mediapipe.solutions.face_mesh
     face_mesh = mpFaceMesh.FaceMesh(
-        static_image_mode=True,
-        max_num_faces=1,    
-        refine_landmarks=False,      
-        min_detection_confidence=0.5,  
-        min_tracking_confidence=0.5     
+        static_image_mode=True,      
         )
+
+    
 
     print("Processing training images")
 
-    for path, label in ftraindataset.imgs:
+    for imagepath, label in ftraindataset.imgs:
         if label == 0:
-            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Fake'), face_mesh)
+            ExtractFromImage(imagepath, os.path.join(path, 'ftraindata_extracted', 'Fake'), face_mesh)
         else:
-            ExtractFromImage(path, os.path.join(path, 'ftraindata_extracted', 'Real'), face_mesh)
+            ExtractFromImage(imagepath, os.path.join(path, 'ftraindata_extracted', 'Real'), face_mesh)
 
     print("Processing test images")
 
-    for path, label in ftestdataset.imgs:
+    for imagepath, label in ftestdataset.imgs:
         if label == 0:
-            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Fake'), face_mesh)
+            ExtractFromImage(imagepath, os.path.join(path, 'ftestdata_extracted', 'Fake'), face_mesh)
         else:
-            ExtractFromImage(path, os.path.join(path, 'ftestdata_extracted', 'Real'), face_mesh)
+            ExtractFromImage(imagepath, os.path.join(path, 'ftestdata_extracted', 'Real'), face_mesh)
+
+    
+
 
     face_mesh.close()
 
