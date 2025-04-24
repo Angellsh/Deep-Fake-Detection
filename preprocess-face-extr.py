@@ -1,31 +1,26 @@
-import os
+ 
 import torch
-from torchvision.models import resnet18, ResNet18_Weights
+import os
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, TensorDataset, SubsetRandomSampler, Subset
 import torchvision.transforms as transforms
 from torchvision.datasets import ImageFolder
-import torchvision
 import kagglehub
-import warnings
 from PIL import Image
 from sklearn import metrics
 import random
 import matplotlib.pyplot as plt
-import time
-import preprocess
-import test
-from resNetBaseModel import ResNet18Wrapper
-
 import cv2
 import mediapipe
-import pandas as pd
 import numpy as np
-
-
-
+import pandas as pd
+#https://alirezasamar.com/blog/2023/03/fine-tuning-pre-trained-resnet-18-model-image-classification-pytorch/
 def ExtractFromImage(filepath, outfolderpath, face_mesh):
+    mpFaceMesh = mediapipe.solutions.face_mesh
+    face_mesh = mpFaceMesh.FaceMesh(
+        static_image_mode=True,      
+        )
 
     img = cv2.imread(filepath)
 
@@ -88,20 +83,22 @@ def ExtractFromImage(filepath, outfolderpath, face_mesh):
 
     return
 
-if __name__=='__main__':
-    starttime = time.time()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    transform = transforms.Compose([
+def load_datasets(path, n):
+    train_transform = transforms.Compose([
         transforms.Resize((224,224)),
+        transforms.RandomHorizontalFlip(p=0.5),
+        transforms.ColorJitter(0.3,0.4,0.4, 0.2), 
         transforms.ToTensor(), #image to np-array with range [0,1]
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    ftraindataset = ImageFolder(root =os.path.join(path, 'Dataset', 'train'), transform=transform)
-    ftestdataset = ImageFolder(root =os.path.join(path, 'Dataset','test'), transform=transform)
-
-
-
-
+    test_transform = transforms.Compose([
+        transforms.Resize((224,224)), 
+        transforms.ToTensor(), 
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    ftraindataset = ImageFolder(root =os.path.join(path, 'Dataset', 'train'), transform=train_transform)
+    ftestdataset = ImageFolder(root =os.path.join(path, 'Dataset','test'), transform=test_transform)
+    print(ftraindataset.class_to_idx)
     #Prepare output folders
     class_names = ftraindataset.classes
     for class_name in class_names:
@@ -141,61 +138,23 @@ if __name__=='__main__':
     face_mesh.close()
 
     #Set new folders
-    ftraindataset = ImageFolder(root =os.path.join(path, 'ftraindata_extracted'), transform=transform)
-    ftestdataset = ImageFolder(root =os.path.join(path, 'ftestdata_extracted'), transform=transform)
+    ftraindataset = ImageFolder(root =os.path.join(path, 'ftraindata_extracted'), transform=train_transform)
+    ftestdataset = ImageFolder(root =os.path.join(path, 'ftestdata_extracted'), transform=test_transform)
 
 
-
-
-    print(ftraindataset.class_to_idx)
+    #training data
     fake_index= ftraindataset.class_to_idx['Fake']
     real_index = ftraindataset.class_to_idx['Real']
     fake_indexes  = [ i for i, label in enumerate(ftraindataset.targets) if label==fake_index]
     real_indxes = [i for i, label in enumerate(ftraindataset.targets) if label==real_index]
-    train_indexes = random.sample(fake_indexes, 10000)+ random.sample(real_indxes, 10000)
+    train_indexes = random.sample(fake_indexes, int(n*0.4))+ random.sample(real_indxes, int(n*0.4))
     traindataset = Subset(ftraindataset, train_indexes)
-
-
 
     #testing data
     fake_index_test = ftestdataset.class_to_idx['Fake']
     real_index_test = ftestdataset.class_to_idx['Real']
     fake_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label== fake_index_test]
     real_indexes_test = [i for i, label in enumerate(ftestdataset.targets) if label==real_index_test]
-    test_indexes = random.sample(fake_indexes_test, 2500)+random.sample(real_indexes_test, 2500)
+    test_indexes = random.sample(fake_indexes_test, int(n*0.1))+random.sample(real_indexes_test, int(n*0.1))
     testdataset = Subset(ftestdataset, test_indexes)
-
-    traindataset, testdataset = preprocess()
-    trainloader = DataLoader(traindataset, batch_size=32, shuffle=True, num_workers=4, pin_memory=True)
-    testloader = DataLoader(testdataset, batch_size =32, shuffle=False, num_workers=4, pin_memory=True)
-    model = ResNet18Wrapper()
-    model.train(trainloader, device)
-    end_time = time.time()
-    print(f"Training time {round((end_time-starttime)/60, 2)} minutes.")
-    test(model.get_model(), testloader, device)
-    end_time2= time.time()
-    print(f"Testing time {round((end_time2-end_time)/60,2)} minutes.")
-#evaluating on 100 real images
-    model.eval()
-    dir = os.path.join(path, 'Dataset', 'test', 'fake')
-    i = 0
-    with os.scandir(dir) as entries:
-        for entry in entries:
-            if entry.name.lower().endswith(('.jpg', '.png', '.jpeg')):  
-                image_path = os.path.join(dir, entry.name)
-                try:
-                    image = Image.open(image_path).convert('RGB')  
-                    image = transform(image).unsqueeze(0).to(device) 
-                    with torch.no_grad(): 
-                        output = model(image)
-                    probability = torch.sigmoid(output).item()
-                    print(f"Image: {entry.name}, Output: {output}, Probability: {probability:.4f}")
-                    if probability <0.5:
-                        print(probability, "Prediction: Fake")
-                    else:
-                        print(probability, "Prediction: Real")
-                    i += 1
-                    if i == 100:  
-                        break
-                except Exception as e:
-                    print(f"Error processing file {entry.name}: {e}")
+    return traindataset, testdataset
